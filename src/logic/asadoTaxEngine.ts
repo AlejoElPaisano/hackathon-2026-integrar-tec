@@ -22,6 +22,40 @@ export type BehaviorModifierId =
   | 'complained_about_meat'
   | 'invited_unannounced';
 
+export type FiscalRigorMode = 'friendly' | 'standard' | 'strict_fmi';
+
+export interface FiscalRigorDefinition {
+  id: FiscalRigorMode;
+  label: string;
+  subtitle: string;
+  multiplier: number;
+  badgeText: string;
+}
+
+export const FISCAL_RIGOR_MODES: Record<FiscalRigorMode, FiscalRigorDefinition> = {
+  friendly: {
+    id: 'friendly',
+    label: 'Parrilla Amistosa',
+    subtitle: 'Descuentos y multas suaves (0.6x) para no romper la amistad',
+    multiplier: 0.6,
+    badgeText: 'Régimen Blando · Paz Social',
+  },
+  standard: {
+    id: 'standard',
+    label: 'Justicia Criolla (Estándar)',
+    subtitle: 'Alícuota oficial Ley 27.931 (1.0x): al que labura se lo premia',
+    multiplier: 1.0,
+    badgeText: 'Régimen Oficial Ley 27.931',
+  },
+  strict_fmi: {
+    id: 'strict_fmi',
+    label: 'Mano Dura del Asador (2x)',
+    subtitle: 'Tolerancia cero al garca (1.65x): recargo implacable al parásito',
+    multiplier: 1.65,
+    badgeText: 'Operativo Caza-Garcas · Mano Dura',
+  },
+};
+
 export interface RoleDefinition {
   id: AsadoRoleId;
   label: string;
@@ -71,10 +105,14 @@ export interface TransferInstruction {
 
 export interface AsadoSettlementReport {
   expedientNumber: string;
+  rigorMode: FiscalRigorMode;
   totalPoolPesos: number;
   participantCount: number;
   equalSharePerPerson: number;
   totalRatoneoTaxCollected: number;
+  /** 0 to 100 scale measuring how much freeloading is happening at the table */
+  ratoneoHeatLevel: number;
+  ratoneoHeatVerdict: string;
   rows: ParticipantAuditRow[];
   transfers: TransferInstruction[];
   chiefCollectorName: string;
@@ -87,7 +125,7 @@ export const ASADO_ROLES: Record<AsadoRoleId, RoleDefinition> = {
     shortTag: 'Asador Oficial',
     taxCode: 'BON-BRASA-01',
     weightDelta: -0.30,
-    fiscalReason: 'Bonificación 30% por insalubridad térmica y olor a humo en el buzo',
+    fiscalReason: 'Bonificación por insalubridad térmica y olor a humo en el buzo',
   },
   house_host: {
     id: 'house_host',
@@ -95,7 +133,7 @@ export const ASADO_ROLES: Record<AsadoRoleId, RoleDefinition> = {
     shortTag: 'Puso la Casa',
     taxCode: 'BON-SEDE-02',
     weightDelta: -0.25,
-    fiscalReason: 'Exención 25% por amortización de vajilla y grasa en el piso',
+    fiscalReason: 'Exención por amortización de vajilla y grasa en el piso',
   },
   butcher_buyer: {
     id: 'butcher_buyer',
@@ -103,7 +141,7 @@ export const ASADO_ROLES: Record<AsadoRoleId, RoleDefinition> = {
     shortTag: 'Comprador Oficial',
     taxCode: 'BON-LOG-03',
     weightDelta: -0.10,
-    fiscalReason: 'Descuento 10% por gestión logística y fila en la carnicería',
+    fiscalReason: 'Descuento por gestión logística y fila en la carnicería',
   },
   fernet_sommelier: {
     id: 'fernet_sommelier',
@@ -119,7 +157,7 @@ export const ASADO_ROLES: Record<AsadoRoleId, RoleDefinition> = {
     shortTag: 'Aporte Mínimo',
     taxCode: 'PERC-HIELO-05',
     weightDelta: 0.22,
-    fiscalReason: 'Percepción +22% por aporte simbólico de baja densidad calórica',
+    fiscalReason: 'Percepción por aporte simbólico de baja densidad calórica',
   },
   pure_parasite: {
     id: 'pure_parasite',
@@ -127,7 +165,7 @@ export const ASADO_ROLES: Record<AsadoRoleId, RoleDefinition> = {
     shortTag: 'Parásito VIP',
     taxCode: 'MULTA-GARCA-99',
     weightDelta: 0.42,
-    fiscalReason: 'Impuesto Solidario al Ratoneo (+42%) por caer directo a comer servido',
+    fiscalReason: 'Impuesto Solidario al Ratoneo por caer directo a comer servido',
   },
 };
 
@@ -173,13 +211,13 @@ export const BEHAVIOR_MODIFIERS: Record<BehaviorModifierId, BehaviorDefinition> 
  * Classifies the participant's fiscal status using authentic Argentine humor
  */
 function resolveFiscalCategory(rawWeightFactor: number, role: AsadoRoleId): string {
-  if (role === 'grill_master' && rawWeightFactor <= 0.75) {
-    return 'Héroe Nacional de la Parrilla (Exento VIP)';
+  if (role === 'grill_master' && rawWeightFactor <= 0.78) {
+    return 'Prócer de la Parrilla (Exento VIP)';
   }
-  if (rawWeightFactor <= 0.78) {
+  if (rawWeightFactor <= 0.8) {
     return 'Pilar Fundamental del Quincho';
   }
-  if (rawWeightFactor <= 1.05) {
+  if (rawWeightFactor <= 1.06) {
     return 'Monotributista Parrillero Cumplidor';
   }
   if (rawWeightFactor <= 1.32) {
@@ -188,27 +226,45 @@ function resolveFiscalCategory(rawWeightFactor: number, role: AsadoRoleId): stri
   return 'Deudor Crónico — Intimación Inmediata';
 }
 
+function resolveHeatVerdict(heat: number): string {
+  if (heat >= 75) {
+    return '¡ALERTA ROJA DE RATONEO! Hay comensales tomando de punto al Asador';
+  }
+  if (heat >= 45) {
+    return 'Brasa Caliente: Se detectaron vivos que cayeron con las manos vacías';
+  }
+  if (heat >= 20) {
+    return 'Fuego Parejo: Algún distraído trajo solo hielo, pero la mesa está en orden';
+  }
+  return 'Armonía Gaucha: Todos pusieron el hombro como corresponde';
+}
+
 /**
  * Main calculation engine:
  * 1. Sums total money spent across all participants.
- * 2. Computes each participant's effort/ratoneo weight factor (clamped to [0.35, 2.20]).
+ * 2. Computes each participant's effort/ratoneo weight factor scaled by Fiscal Rigor.
  * 3. Normalizes weights so the sum of all fairAdjustedShares equals 100% of totalPoolPesos.
  * 4. Computes exact transfers from debtors to creditors.
  */
 export function calculateAsadoSettlement(
   participants: AsadoParticipant[],
-  expedientSeed = '931-B/2026'
+  expedientSeed = '931-B/2026',
+  rigorMode: FiscalRigorMode = 'standard'
 ): AsadoSettlementReport {
   try {
     const safeParticipants = participants.filter((p) => p && p.name.trim().length > 0);
+    const rigorMultiplier = FISCAL_RIGOR_MODES[rigorMode]?.multiplier ?? 1.0;
 
     if (safeParticipants.length === 0) {
       return {
         expedientNumber: `EXP-${expedientSeed}-000`,
+        rigorMode,
         totalPoolPesos: 0,
         participantCount: 0,
         equalSharePerPerson: 0,
         totalRatoneoTaxCollected: 0,
+        ratoneoHeatLevel: 0,
+        ratoneoHeatVerdict: resolveHeatVerdict(0),
         rows: [],
         transfers: [],
         chiefCollectorName: 'Sin Designar',
@@ -223,21 +279,32 @@ export function calculateAsadoSettlement(
     const equalSharePerPerson = totalPoolPesos / participantCount;
 
     // Step 1: Compute unnormalized weight factors for each participant
+    let rawInfractionSignal = 0;
+
     const preliminary = safeParticipants.map((p) => {
       const roleDef = ASADO_ROLES[p.role] ?? ASADO_ROLES.fernet_sommelier;
-      let factor = 1.0 + roleDef.weightDelta;
+      let deltaSum = roleDef.weightDelta;
       const appliedConcepts: string[] = [roleDef.fiscalReason];
+
+      if (roleDef.weightDelta > 0) {
+        rawInfractionSignal += roleDef.weightDelta * 65;
+      }
 
       for (const bId of p.behaviors) {
         const mod = BEHAVIOR_MODIFIERS[bId];
         if (mod) {
-          factor += mod.weightDelta;
+          deltaSum += mod.weightDelta;
           appliedConcepts.push(mod.fiscalConcept);
+          if (mod.weightDelta > 0) {
+            rawInfractionSignal += mod.weightDelta * 55;
+          }
         }
       }
 
-      // Clamp so nobody pays less than 35% of base share or more than 220%
-      const clampedFactor = Math.min(2.2, Math.max(0.35, factor));
+      const scaledFactor = 1.0 + deltaSum * rigorMultiplier;
+      // Clamp so nobody pays less than 25% of base share or more than 240%
+      const clampedFactor = Math.min(2.4, Math.max(0.25, scaledFactor));
+
       return {
         participant: {
           ...p,
@@ -290,6 +357,11 @@ export function calculateAsadoSettlement(
       .filter((r) => r.fiscalAdjustmentPesos > 0)
       .reduce((acc, r) => acc + r.fiscalAdjustmentPesos, 0);
 
+    const ratoneoHeatLevel = Math.min(
+      100,
+      Math.max(8, Math.round(rawInfractionSignal * rigorMultiplier))
+    );
+
     // Step 4: Match Debtors to Creditors with greedy settlement algorithm
     const creditors = rows
       .filter((r) => r.netBalance > 10)
@@ -332,10 +404,13 @@ export function calculateAsadoSettlement(
 
     return {
       expedientNumber: `ARCA-${expedientSeed}-${hashDigits}`,
+      rigorMode,
       totalPoolPesos: Math.round(totalPoolPesos),
       participantCount,
       equalSharePerPerson: Math.round(equalSharePerPerson),
       totalRatoneoTaxCollected,
+      ratoneoHeatLevel,
+      ratoneoHeatVerdict: resolveHeatVerdict(ratoneoHeatLevel),
       rows,
       transfers,
       chiefCollectorName,
@@ -343,10 +418,13 @@ export function calculateAsadoSettlement(
   } catch {
     return {
       expedientNumber: 'ARCA-FALLBACK-931',
+      rigorMode: 'standard',
       totalPoolPesos: 0,
       participantCount: 0,
       equalSharePerPerson: 0,
       totalRatoneoTaxCollected: 0,
+      ratoneoHeatLevel: 15,
+      ratoneoHeatVerdict: resolveHeatVerdict(15),
       rows: [],
       transfers: [],
       chiefCollectorName: 'Asador',
@@ -372,15 +450,16 @@ export function buildWhatsAppOfficialNotice(
   eventTitle: string,
   paymentAlias: string
 ): string {
+  const rigorDef = FISCAL_RIGOR_MODES[report.rigorMode];
   const lines: string[] = [
     `🇦🇷 *ARCA-SADO | FORMULARIO OFICIAL 931-B*`,
-    `📋 *Expediente:* ${report.expedientNumber}`,
-    `🥩 *Operativo:* ${eventTitle}`,
+    `📋 *Expediente:* ${report.expedientNumber} (${rigorDef.badgeText})`,
+    `🥩 *Juntada:* ${eventTitle}`,
     `💰 *Gasto Total Auditado:* ${formatArgentinePesos(report.totalPoolPesos)} (${report.participantCount} comensales)`,
-    `⚖️ *Cuota Base Romana:* ${formatArgentinePesos(report.equalSharePerPerson)} c/u`,
+    `⚖️ *Si dividíamos "a la romana":* ${formatArgentinePesos(report.equalSharePerPerson)} c/u`,
     `🚨 *Impuesto al Ratoneo Redistribuido:* ${formatArgentinePesos(report.totalRatoneoTaxCollected)}`,
     ``,
-    `*DETALLE DE LIQUIDACIÓN POR COMENSAL:*`,
+    `*LIQUIDACIÓN OFICIAL POR COMENSAL:*`,
   ];
 
   for (const row of report.rows) {
@@ -393,7 +472,7 @@ export function buildWhatsAppOfficialNotice(
           : `AL DÍA (SALDADO) 🤝`;
 
     lines.push(
-      `• *${row.participant.name}* (${ASADO_ROLES[row.participant.role].shortTag}): Puso ${formatArgentinePesos(row.participant.amountSpent)} | Cuota Justa: ${formatArgentinePesos(row.fairAdjustedShare)} (${deltaSign}${formatArgentinePesos(row.fiscalAdjustmentPesos)}) 👉 *${balanceText}*`
+      `• *${row.participant.name}* (${ASADO_ROLES[row.participant.role].shortTag}): Puso ${formatArgentinePesos(row.participant.amountSpent)} | Cuota Justa: ${formatArgentinePesos(row.fairAdjustedShare)} (${deltaSign}${formatArgentinePesos(row.fiscalAdjustmentPesos)} vs romana) 👉 *${balanceText}*`
     );
   }
 
@@ -408,8 +487,8 @@ export function buildWhatsAppOfficialNotice(
 
   lines.push(
     ``,
-    `🏦 *Alias Oficial Recaudador:* \`${paymentAlias || 'el.tucu.parrilla.mp'}\``,
-    `⚠️ *Fallo inapelable auditado bajo Ley de Solidaridad Parrillera N° 27.931.*`
+    `🏦 *Alias Oficial para Transferir:* \`${paymentAlias || 'tucu.asador.mp'}\``,
+    `☀️ *Un aplauso para el asador. Fallo inapelable bajo Ley N° 27.931.*`
   );
 
   return lines.join('\n');
