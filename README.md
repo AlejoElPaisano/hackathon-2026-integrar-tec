@@ -29,6 +29,11 @@ En toda juntada o asado argentino pasa siempre lo mismo: después de tres semana
   - `arca-sado-demo-qa`: Auditoría de cumplimiento de las 5 condiciones obligatorias del hackathon y pruebas de casos de borde.
 - **El Gentleman (Pi Coding Agent) + Claude / Gemini + Impeccable Design Skill:** Lectura y cumplimiento de las reglas de arquitectura (`AGENTS.md` y carpeta `rules/`), implementación modular del motor fiscal en TypeScript (`src/logic/asadoTaxEngine.ts`), interfaz interactiva en React (`src/App.tsx`, `src/components/OfficialReceiptCard.tsx`), síntesis de sonido de sello de goma vía Web Audio API y pruebas unitarias automatizadas con Vitest (`npm test`).
 
+## 📸 Capturas de Pantalla (`screenshots/`)
+| Vista General del Simulador | Formulario Oficial 931-B | Cédula de Intimación Individual |
+| :---: | :---: | :---: |
+| ![Vista General](screenshots/01-vista-general.png) | ![Formulario 931-B](screenshots/02-formulario-931b.png) | ![Cédula de Escrache](screenshots/03-cedula-escrache-y-sello.png) |
+
 ---
 
 # 🇬🇧 English Version — ARCA-SADO (Argentine BBQ Tax & Fairness Agency)
