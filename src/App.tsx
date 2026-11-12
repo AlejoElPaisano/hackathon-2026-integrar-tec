@@ -76,7 +76,22 @@ export function App() {
   const [newName, setNewName] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newBrought, setNewBrought] = useState('');
-  const [newRole, setNewRole] = useState<AsadoRoleId>('ice_bringer');
+  const [newRole, setNewRole] = useState<AsadoRoleId>('regular_guest');
+
+  // Game-feel audit state: selected suspect & seal lifecycle
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(
+    () => state.participants[0]?.id ?? null
+  );
+  const [sealStatus, setSealStatus] = useState<'unsealed' | 'sealed' | 'stale'>('sealed');
+  const [lastChangedParticipantId, setLastChangedParticipantId] = useState<string | null>(null);
+
+  const markAuditModified = (changedId?: string) => {
+    setSealStatus((prev) => (prev === 'sealed' ? 'stale' : prev));
+    if (changedId) {
+      setSelectedParticipantId(changedId);
+      setLastChangedParticipantId(changedId);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -108,6 +123,8 @@ export function App() {
         behaviors: [...p.behaviors],
       })),
     }));
+    setSelectedParticipantId(preset.participants[0]?.id ?? null);
+    setSealStatus('unsealed');
   };
 
   const handleResetDemo = () => {
@@ -123,12 +140,80 @@ export function App() {
         behaviors: [...p.behaviors],
       })),
     });
+    setSelectedParticipantId(defaultPreset.participants[0]?.id ?? null);
+    setSealStatus('sealed');
+  };
+
+  const handleStartBlankTable = (count = 3) => {
+    const defaultRoles: AsadoRoleId[] = [
+      'grill_master',
+      'house_host',
+      'regular_guest',
+      'regular_guest',
+      'fernet_sommelier',
+    ];
+    const blankParticipants: AsadoParticipant[] = Array.from(
+      { length: Math.max(2, count) },
+      (_, idx) => ({
+        id: `blank-${Date.now()}-${idx + 1}`,
+        name: '',
+        amountSpent: 0,
+        whatTheyBrought: '',
+        role: defaultRoles[idx % defaultRoles.length],
+        behaviors: [],
+      })
+    );
+
+    setState({
+      activePresetId: 'custom_blank',
+      rigorMode: 'standard',
+      eventTitle: '',
+      locationName: '',
+      paymentAlias: '',
+      participants: blankParticipants,
+    });
+    setSelectedParticipantId(blankParticipants[0]?.id ?? null);
+    setSealStatus('unsealed');
+  };
+
+  const handleSetParticipantCount = (targetCount: number) => {
+    const clamped = Math.max(2, Math.min(10, targetCount));
+    markAuditModified();
+    setState((prev) => {
+      if (prev.participants.length === clamped) return prev;
+      if (prev.participants.length > clamped) {
+        return {
+          ...prev,
+          participants: prev.participants.slice(0, clamped),
+        };
+      }
+      const extraNeeded = clamped - prev.participants.length;
+      const added: AsadoParticipant[] = Array.from(
+        { length: extraNeeded },
+        (_, idx) => {
+          const num = prev.participants.length + idx + 1;
+          return {
+            id: `extra-${Date.now()}-${num}`,
+            name: '',
+            amountSpent: 0,
+            whatTheyBrought: '',
+            role: 'regular_guest',
+            behaviors: [],
+          };
+        }
+      );
+      return {
+        ...prev,
+        participants: [...prev.participants, ...added],
+      };
+    });
   };
 
   const handleUpdateParticipant = (
     id: string,
     patch: Partial<AsadoParticipant>
   ) => {
+    markAuditModified(id);
     setState((prev) => ({
       ...prev,
       participants: prev.participants.map((p) =>
@@ -141,6 +226,7 @@ export function App() {
     participantId: string,
     behaviorId: BehaviorModifierId
   ) => {
+    markAuditModified(participantId);
     setState((prev) => ({
       ...prev,
       participants: prev.participants.map((p) => {
@@ -157,6 +243,7 @@ export function App() {
   };
 
   const handleRemoveParticipant = (id: string) => {
+    markAuditModified();
     setState((prev) => {
       if (prev.participants.length <= 2) return prev;
       return {
@@ -182,6 +269,7 @@ export function App() {
         newRole === 'pure_parasite' ? ['left_before_cleaning'] : [],
     };
 
+    markAuditModified(created.id);
     setState((prev) => ({
       ...prev,
       participants: [...prev.participants, created],
@@ -190,7 +278,7 @@ export function App() {
     setNewName('');
     setNewAmount('');
     setNewBrought('');
-    setNewRole('ice_bringer');
+    setNewRole('regular_guest');
   };
 
   return (
@@ -213,7 +301,7 @@ export function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 relative">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="relative w-14 h-14 rounded-2xl bg-[#38261e] border-2 border-[#eab308]/60 flex items-center justify-center shrink-0 shadow-md">
-              <SolDeMayoIcon className="w-11 h-11 animate-sol-mayo" />
+              <SolDeMayoIcon className="w-11 h-11" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -256,12 +344,26 @@ export function App() {
 
             <button
               type="button"
+              onClick={() => handleStartBlankTable(3)}
+              title="Vaciar los campos para cargar tu propio asado desde cero con placeholders"
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all border-2 inline-flex items-center gap-1.5 ${
+                state.activePresetId === 'custom_blank'
+                  ? 'bg-[#3898d4] text-[#1c1613] border-white shadow-md scale-[1.02]'
+                  : 'bg-[#241914] hover:bg-[#38261e] text-[#9ad6ff] border-[#3898d4]/60'
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Mesa desde Cero
+            </button>
+
+            <button
+              type="button"
               onClick={handleResetDemo}
-              title="Restaurar los datos originales del asado"
+              title="Restaurar los datos originales del ejemplo"
               className="px-3 py-2 rounded-xl text-xs font-bold bg-[#38261e] hover:bg-[#473026] text-[#e5d5c3] hover:text-white border-2 border-[#6e4f3a] cursor-pointer transition-colors inline-flex items-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5 text-[#eab308]" />
-              Reiniciar Mesa
+              Restaurar Demo
             </button>
           </div>
         </div>
@@ -314,9 +416,10 @@ export function App() {
                     <button
                       key={mode.id}
                       type="button"
-                      onClick={() =>
-                        setState((prev) => ({ ...prev, rigorMode: mode.id }))
-                      }
+                      onClick={() => {
+                        markAuditModified();
+                        setState((prev) => ({ ...prev, rigorMode: mode.id }));
+                      }}
                       className={`px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all border ${
                         active
                           ? 'bg-[#ea580c] text-white border-[#fed7aa] shadow-sm'
@@ -329,6 +432,45 @@ export function App() {
                 }
               )}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Simulador de Auditoría Parrillera — 3-Step Interactive Progress Strip */}
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-3 no-print">
+        <div className="bg-[#241914]/90 border border-[#6e4f3a]/80 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 font-extrabold text-[#fde047] uppercase tracking-wider">
+            <span>🕵️ Simulador de Auditoría Parrillera:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#fcf7eb]">
+              <span className="w-5 h-5 rounded-full bg-[#3898d4] text-[#1c1613] font-mono-fiscal font-extrabold inline-flex items-center justify-center text-[11px]">
+                1
+              </span>
+              Inspeccioná sospechosos ({state.participants.length})
+            </span>
+            <span className="text-[#6e4f3a]">→</span>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#fcf7eb]">
+              <span className="w-5 h-5 rounded-full bg-[#eab308] text-[#1c1613] font-mono-fiscal font-extrabold inline-flex items-center justify-center text-[11px]">
+                2
+              </span>
+              Fiscalizá méritos y ratoneos en vivo
+            </span>
+            <span className="text-[#6e4f3a]">→</span>
+            <span
+              className={`inline-flex items-center gap-1.5 font-extrabold px-2.5 py-0.5 rounded-full border ${
+                sealStatus === 'sealed'
+                  ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200'
+                  : 'bg-amber-500/20 border-amber-400 text-amber-200 animate-pulse'
+              }`}
+            >
+              <span className="w-5 h-5 rounded-full bg-[#a81c24] text-white font-mono-fiscal font-extrabold inline-flex items-center justify-center text-[11px]">
+                3
+              </span>
+              {sealStatus === 'sealed'
+                ? 'Acta 931-B Sellada y Lista'
+                : 'Falta Sellar el Acta 931-B'}
+            </span>
           </div>
         </div>
       </div>
@@ -420,14 +562,39 @@ export function App() {
 
           {/* Participants List */}
           <div className="bg-[#32231b] border-2 border-[#6e4f3a] rounded-2xl p-4 sm:p-5 space-y-4 shadow-md">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm sm:text-base font-extrabold text-[#fcf7eb] flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#3898d4]" />
-                2. Los Comensales de la Mesa ({state.participants.length})
-              </h2>
-              <span className="text-xs font-mono-fiscal bg-[#241914] border border-[#eab308]/50 text-[#fde047] px-2.5 py-1 rounded-lg font-extrabold">
-                Pozo Total: {formatArgentinePesos(settlementReport.totalPoolPesos)}
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm sm:text-base font-extrabold text-[#fcf7eb] flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#3898d4]" />
+                  2. Los Comensales de la Mesa ({state.participants.length})
+                </h2>
+                <p className="text-[11px] text-[#d9c7b2] mt-0.5">
+                  Elegí cuántos son en la mesa (mínimo 2) o quitá/agregá amigos libremente:
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <label
+                  htmlFor="participant-count-select"
+                  className="text-xs font-bold text-[#e5d5c3]"
+                >
+                  ¿Cuántos son?
+                </label>
+                <select
+                  id="participant-count-select"
+                  value={state.participants.length}
+                  onChange={(e) =>
+                    handleSetParticipantCount(Number(e.target.value))
+                  }
+                  className="rounded-xl bg-[#241914] border-2 border-[#eab308]/70 px-3 py-1.5 text-xs font-mono-fiscal font-extrabold text-[#fde047] focus:outline-none focus:border-[#eab308] cursor-pointer"
+                >
+                  {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => (
+                    <option key={count} value={count}>
+                      {count} comensales
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-3.5">
@@ -435,11 +602,18 @@ export function App() {
                 const auditRow = settlementReport.rows.find(
                   (r) => r.participant.id === participant.id
                 );
+                const isSelected = selectedParticipantId === participant.id;
 
                 return (
                   <div
                     key={participant.id}
-                    className="rounded-2xl bg-[#241914] border-2 border-[#6e4f3a]/80 p-3.5 space-y-3 hover:border-[#eab308]/70 transition-all"
+                    onClick={() => setSelectedParticipantId(participant.id)}
+                    onFocusCapture={() => setSelectedParticipantId(participant.id)}
+                    className={`rounded-2xl bg-[#241914] border-2 p-3.5 space-y-3 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-[#eab308] ring-2 ring-[#eab308]/35 shadow-lg bg-[#2b1e18]'
+                        : 'border-[#6e4f3a]/80 hover:border-[#eab308]/60'
+                    }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <div className="flex items-center gap-2.5 flex-1">
@@ -453,12 +627,13 @@ export function App() {
                             <input
                               type="text"
                               value={participant.name}
+                              placeholder={`Ej: Comensal #${state.participants.indexOf(participant) + 1}`}
                               onChange={(e) =>
                                 handleUpdateParticipant(participant.id, {
                                   name: e.target.value,
                                 })
                               }
-                              className="w-full rounded-lg bg-[#32231b] border border-[#6e4f3a] px-2.5 py-1.5 text-xs font-extrabold text-white focus:outline-none focus:border-[#eab308]"
+                              className="w-full rounded-lg bg-[#32231b] border border-[#6e4f3a] px-2.5 py-1.5 text-xs font-extrabold text-white placeholder:text-[#9c8470] placeholder:font-normal focus:outline-none focus:border-[#eab308]"
                             />
                           </div>
 
@@ -470,7 +645,8 @@ export function App() {
                               type="number"
                               min={0}
                               step={500}
-                              value={participant.amountSpent}
+                              value={participant.amountSpent || ''}
+                              placeholder="Ej: 15000"
                               onChange={(e) =>
                                 handleUpdateParticipant(participant.id, {
                                   amountSpent: Math.max(
@@ -479,7 +655,7 @@ export function App() {
                                   ),
                                 })
                               }
-                              className="w-full rounded-lg bg-[#32231b] border border-[#6e4f3a] px-2.5 py-1.5 text-xs font-mono-fiscal font-extrabold text-[#fde047] focus:outline-none focus:border-[#eab308]"
+                              className="w-full rounded-lg bg-[#32231b] border border-[#6e4f3a] px-2.5 py-1.5 text-xs font-mono-fiscal font-extrabold text-[#fde047] placeholder:text-[#9c8470] placeholder:font-normal focus:outline-none focus:border-[#eab308]"
                             />
                           </div>
 
@@ -513,11 +689,15 @@ export function App() {
                       {state.participants.length > 2 && (
                         <button
                           type="button"
-                          onClick={() => handleRemoveParticipant(participant.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveParticipant(participant.id);
+                          }}
                           title="Sacar de la mesa"
-                          className="self-end sm:self-center p-1.5 rounded-lg text-[#d9c7b2] hover:text-rose-400 hover:bg-rose-500/15 cursor-pointer transition-colors"
+                          className="self-end sm:self-center px-2 py-1.5 rounded-lg text-[11px] font-bold text-rose-300 bg-rose-500/10 border border-rose-400/30 hover:bg-rose-500/25 cursor-pointer transition-colors inline-flex items-center gap-1 shrink-0"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Quitar
                         </button>
                       )}
                     </div>
@@ -647,6 +827,11 @@ export function App() {
             eventTitle={state.eventTitle}
             locationName={state.locationName}
             paymentAlias={state.paymentAlias}
+            selectedParticipantId={selectedParticipantId}
+            lastChangedParticipantId={lastChangedParticipantId}
+            sealStatus={sealStatus}
+            onSelectParticipant={setSelectedParticipantId}
+            onSealReceipt={() => setSealStatus('sealed')}
           />
 
           {/* Explainable Formula Box for Judges & Tuesday Defense */}

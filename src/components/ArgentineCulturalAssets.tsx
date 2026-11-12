@@ -31,56 +31,56 @@ export function playRubberStampSound(): void {
 }
 
 /**
- * Sol de Mayo Argentine Emblem SVG
+ * Sol de Mayo Argentine Emblem SVG (16 symmetrical rays; only rays rotate so the face stays upright)
  */
-export const SolDeMayoIcon: React.FC<{ className?: string }> = ({ className = 'w-8 h-8' }) => (
-  <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
-    {/* Sun Rays */}
-    <g stroke="#eab308" strokeWidth="2.4" strokeLinecap="round">
-      <line x1="32" y1="2" x2="32" y2="12" />
-      <line x1="32" y1="52" x2="32" y2="62" />
-      <line x1="2" y1="32" x2="12" y2="32" />
-      <line x1="52" y1="32" x2="62" y2="32" />
-      <line x1="10.8" y1="10.8" x2="17.8" y2="17.8" />
-      <line x1="46.2" y1="46.2" x2="53.2" y2="53.2" />
-      <line x1="53.2" y1="10.8" x2="46.2" y2="17.8" />
-      <line x1="17.8" y1="46.2" x2="10.8" y2="53.2" />
-      <line x1="20" y1="4.5" x2="24" y2="13" />
-      <line x1="44" y1="51" x2="40" y2="59.5" />
-      <line x1="4.5" y1="20" x2="13" y2="24" />
-      <line x1="51" y1="40" x2="59.5" y2="44" />
-      <line x1="44" y1="4.5" x2="40" y2="13" />
-      <line x1="20" y1="51" x2="24" y2="59.5" />
-      <line x1="59.5" y1="20" x2="51" y2="24" />
-      <line x1="13" y1="40" x2="4.5" y2="44" />
-    </g>
-    <circle cx="32" cy="32" r="14" fill="#facc15" stroke="#b45309" strokeWidth="2" />
-    <circle cx="27.5" cy="29.5" r="1.5" fill="#78350f" />
-    <circle cx="36.5" cy="29.5" r="1.5" fill="#78350f" />
-    <path d="M27.5 36.5C29 38 35 38 36.5 36.5" stroke="#78350f" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
-);
+export const SolDeMayoIcon: React.FC<{ className?: string }> = ({ className = 'w-8 h-8' }) => {
+  const rays = Array.from({ length: 16 }, (_, i) => i * 22.5);
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+      {/* Rotating 16-ray crown */}
+      <g className="animate-sol-mayo" style={{ transformOrigin: '32px 32px' }}>
+        {rays.map((angle, idx) => (
+          <g key={angle} transform={`rotate(${angle} 32 32)`}>
+            {idx % 2 === 0 ? (
+              <line
+                x1="32"
+                y1="3"
+                x2="32"
+                y2="15"
+                stroke="#eab308"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+              />
+            ) : (
+              <path
+                d="M32 5 C30 9, 34 11, 32 15"
+                stroke="#f59e0b"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                fill="none"
+              />
+            )}
+          </g>
+        ))}
+      </g>
+      {/* Upright Sun Disc & Face */}
+      <circle cx="32" cy="32" r="14.5" fill="#facc15" stroke="#b45309" strokeWidth="2.2" />
+      <circle cx="27.5" cy="29.5" r="1.6" fill="#78350f" />
+      <circle cx="36.5" cy="29.5" r="1.6" fill="#78350f" />
+      <path
+        d="M27.5 36.2C29.2 38 34.8 38 36.5 36.2"
+        stroke="#78350f"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
 
 /**
- * Fileteado Porteño Ornamental Corner Flourish SVG
+ * Subtle Argentine Stamp Seal Ornament (replaces the old 3 bent lines corner)
  */
-export const FileteadoCorner: React.FC<{ className?: string }> = ({ className = 'w-10 h-10' }) => (
-  <svg viewBox="0 0 48 48" fill="none" className={className} aria-hidden="true">
-    <path
-      d="M4 44V16C4 9.37258 9.37258 4 16 4H44"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-    />
-    <path
-      d="M9 36V18C9 13.0294 13.0294 9 18 9H36"
-      stroke="#3898d4"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-    <circle cx="15" cy="15" r="3" fill="#eab308" />
-  </svg>
-);
+export const FileteadoCorner: React.FC<{ className?: string }> = () => null;
 
 /**
  * Custom Argentine Role Badge Icon (Parrilla, Quincho, Carnicería, Fernet, Hielo, Parásito)
@@ -133,6 +133,19 @@ export const RoleCulturalBadge: React.FC<{ role: AsadoRoleId }> = ({ role }) => 
           <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth="2">
             <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
             <path d="M3 6h18M16 10a4 4 0 0 1-8 0" />
+          </svg>
+        </span>
+      );
+    case 'regular_guest':
+      return (
+        <span
+          title="Invitado Cumplidor / Comensal Normal"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-500/20 border border-slate-400/50 text-slate-200 shrink-0"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" strokeLinecap="round" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="m16 11 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" stroke="#4ade80" />
           </svg>
         </span>
       );

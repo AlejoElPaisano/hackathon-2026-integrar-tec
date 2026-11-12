@@ -44,4 +44,30 @@ describe('calculateAsadoSettlement', () => {
     expect(notice).toContain('FORMULARIO OFICIAL 931-B');
     expect(notice).toContain('tucu.asador.mp');
   });
+
+  it('assigns placeholder names (Comensal #N) when starting a blank table with empty names', () => {
+    const blankReport = calculateAsadoSettlement([
+      {
+        id: 'b1',
+        name: '',
+        amountSpent: 20000,
+        whatTheyBrought: '',
+        role: 'grill_master',
+        behaviors: [],
+      },
+      {
+        id: 'b2',
+        name: '   ',
+        amountSpent: 0,
+        whatTheyBrought: '',
+        role: 'ice_bringer',
+        behaviors: [],
+      },
+    ]);
+
+    expect(blankReport.participantCount).toBe(2);
+    expect(blankReport.rows[0].participant.name).toBe('Comensal #1');
+    expect(blankReport.rows[1].participant.name).toBe('Comensal #2');
+    expect(blankReport.totalPoolPesos).toBe(20000);
+  });
 });

@@ -35,6 +35,11 @@ interface OfficialReceiptCardProps {
   eventTitle: string;
   locationName: string;
   paymentAlias: string;
+  selectedParticipantId?: string | null;
+  lastChangedParticipantId?: string | null;
+  sealStatus?: 'unsealed' | 'sealed' | 'stale';
+  onSelectParticipant?: (id: string) => void;
+  onSealReceipt?: () => void;
 }
 
 export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
@@ -42,6 +47,11 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
   eventTitle,
   locationName,
   paymentAlias,
+  selectedParticipantId = null,
+  lastChangedParticipantId = null,
+  sealStatus = 'sealed',
+  onSelectParticipant,
+  onSealReceipt,
 }) => {
   const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
   const [stampAnimationKey, setStampAnimationKey] = useState(1);
@@ -93,6 +103,7 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
   const handleTriggerStamp = () => {
     playRubberStampSound();
     setStampAnimationKey((prev) => prev + 1);
+    onSealReceipt?.();
     try {
       confetti({
         particleCount: 55,
@@ -143,7 +154,7 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
       {/* Official Argentine Ministry Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-[#1c1613] pb-4">
         <div className="flex items-start gap-3">
-          <SolDeMayoIcon className="w-12 h-12 shrink-0 mt-0.5 animate-sol-mayo" />
+          <SolDeMayoIcon className="w-12 h-12 shrink-0 mt-0.5" />
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#1c1613] text-[#fcf7eb] text-[10px] font-mono-fiscal font-bold tracking-wider uppercase mb-1">
               <Scale className="w-3 h-3 text-[#eab308]" />
@@ -235,96 +246,131 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
           </span>
         </div>
 
-        <div className="overflow-x-auto border-2 border-[#1c1613] rounded-xl bg-[#fffdf7]">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b-2 border-[#1c1613] bg-[#f2e4c6] text-[#1c1613] font-mono-fiscal text-[11px] uppercase">
-                <th className="py-2 px-2.5">Comensal / Prontuario Parrillero</th>
-                <th className="py-2 px-2 text-right">Puso ($)</th>
-                <th className="py-2 px-2 text-right">Premio / Multa</th>
-                <th className="py-2 px-2 text-right">Cuota Justa</th>
-                <th className="py-2 px-2.5 text-right">Veredicto</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1c1613]/15">
-              {report.rows.map((row) => {
-                const roleInfo = ASADO_ROLES[row.participant.role];
-                const isDiscount = row.fiscalAdjustmentPesos < -10;
-                const isPenalty = row.fiscalAdjustmentPesos > 10;
+        <div className="border-2 border-[#1c1613] rounded-xl bg-[#fffdf7] overflow-hidden divide-y divide-[#1c1613]/20">
+          {report.rows.map((row) => {
+            const roleInfo = ASADO_ROLES[row.participant.role];
+            const isDiscount = row.fiscalAdjustmentPesos < -10;
+            const isPenalty = row.fiscalAdjustmentPesos > 10;
+            const isSelected = selectedParticipantId === row.participant.id;
+            const isRecentlyChanged =
+              lastChangedParticipantId === row.participant.id;
 
-                return (
-                  <tr key={row.participant.id} className="hover:bg-[#f6ecd6] transition-colors">
-                    <td className="py-2.5 px-2.5 align-top">
-                      <div className="font-extrabold text-[#1c1613] text-xs sm:text-sm flex flex-wrap items-center gap-1.5">
-                        <span>{row.participant.name}</span>
-                        <span className="text-[10px] font-mono-fiscal font-bold px-1.5 py-0.5 rounded bg-[#3898d4]/20 text-[#124e78] border border-[#3898d4]/40">
-                          {roleInfo.shortTag}
+            return (
+              <div
+                key={row.participant.id}
+                onClick={() => onSelectParticipant?.(row.participant.id)}
+                className={`p-3 transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#f8e7b5] ring-2 ring-inset ring-[#a81c24]/70'
+                    : 'hover:bg-[#f6ecd6]'
+                } ${isRecentlyChanged ? 'animate-receipt-row-flash' : ''}`}
+              >
+                {/* Top Row: Name + Role Tag on Left | Verdict Badge + Escrache Action on Right */}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-[#1c1613] text-sm flex flex-wrap items-center gap-1.5">
+                      {isSelected && (
+                        <span
+                          title="Sospechoso bajo inspección"
+                          className="inline-block w-2.5 h-2.5 rounded-full bg-[#a81c24] shrink-0"
+                        />
+                      )}
+                      <span>
+                        {row.participant.name ||
+                          `Comensal #${report.rows.indexOf(row) + 1}`}
+                      </span>
+                      <span className="text-[10px] font-mono-fiscal font-bold px-2 py-0.5 rounded bg-[#3898d4]/20 text-[#124e78] border border-[#3898d4]/40">
+                        {roleInfo.shortTag}
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-bold text-[#7c5836] mt-0.5">
+                      {row.fiscalCategory}
+                    </div>
+                  </div>
+
+                  {/* Verdict Pill */}
+                  <div className="flex items-center gap-1.5 shrink-0 font-mono-fiscal font-extrabold">
+                    {row.statusBadge === 'creditor' && (
+                      <span className="inline-block px-2.5 py-1 rounded-lg bg-[#15803d] text-white text-xs shadow-2xs whitespace-nowrap">
+                        COBRA {formatArgentinePesos(row.netBalance)}
+                      </span>
+                    )}
+                    {row.statusBadge === 'debtor' && (
+                      <>
+                        <span className="inline-block px-2.5 py-1 rounded-lg bg-[#a81c24] text-white text-xs shadow-2xs whitespace-nowrap">
+                          PAGA {formatArgentinePesos(Math.abs(row.netBalance))}
                         </span>
-                      </div>
-                      <div className="text-[11px] font-semibold text-[#7c5836] mt-0.5">
-                        {row.fiscalCategory}
-                      </div>
-                      <div className="text-[11px] text-[#5c4938] mt-0.5 leading-snug">
-                        {row.appliedConcepts.join(' + ')}
-                      </div>
-                    </td>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDebtorEscrache(row);
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] font-sans font-extrabold px-2 py-1 rounded-lg bg-[#eab308]/35 hover:bg-[#eab308]/65 text-[#1c1613] border border-[#1c1613]/40 cursor-pointer transition-colors no-print whitespace-nowrap"
+                        >
+                          <Megaphone className="w-3 h-3 text-[#a81c24]" />
+                          Emitir Cédula
+                        </button>
+                      </>
+                    )}
+                    {row.statusBadge === 'settled' && (
+                      <span className="inline-block px-2.5 py-1 rounded-lg bg-[#1c1613]/15 text-[#1c1613] text-xs whitespace-nowrap">
+                        AL DÍA
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                    <td className="py-2.5 px-2 text-right font-mono-fiscal font-bold text-[#2b231d] align-top whitespace-nowrap">
+                {/* Middle Row: Compact 3-Column Accounting Strip */}
+                <div className="mt-2 grid grid-cols-3 gap-2 bg-[#f4ead2]/90 border border-[#1c1613]/20 rounded-lg px-2.5 py-1.5 font-mono-fiscal text-xs">
+                  <div>
+                    <span className="block text-[9px] uppercase font-bold text-[#6e5641]">
+                      Puso en mesa
+                    </span>
+                    <strong className="text-[#1c1613] font-extrabold whitespace-nowrap">
                       {formatArgentinePesos(row.participant.amountSpent)}
-                    </td>
+                    </strong>
+                  </div>
 
-                    <td className="py-2.5 px-2 text-right font-mono-fiscal font-bold align-top whitespace-nowrap">
-                      {isDiscount && (
-                        <span className="text-[#166534] bg-[#dcfce7] border border-[#166534]/30 px-1.5 py-0.5 rounded">
-                          {formatArgentinePesos(row.fiscalAdjustmentPesos)}
-                        </span>
-                      )}
-                      {isPenalty && (
-                        <span className="text-[#a81c24] bg-[#fee2e2] border border-[#a81c24]/30 px-1.5 py-0.5 rounded">
-                          +{formatArgentinePesos(row.fiscalAdjustmentPesos)}
-                        </span>
-                      )}
-                      {!isDiscount && !isPenalty && (
-                        <span className="text-[#6e5641]">$ 0</span>
-                      )}
-                    </td>
+                  <div className="border-l border-[#1c1613]/15 pl-2">
+                    <span className="block text-[9px] uppercase font-bold text-[#6e5641]">
+                      Premio / Multa
+                    </span>
+                    {isDiscount && (
+                      <strong className="text-[#166534] font-extrabold whitespace-nowrap">
+                        {formatArgentinePesos(row.fiscalAdjustmentPesos)}
+                      </strong>
+                    )}
+                    {isPenalty && (
+                      <strong className="text-[#a81c24] font-extrabold whitespace-nowrap">
+                        +{formatArgentinePesos(row.fiscalAdjustmentPesos)}
+                      </strong>
+                    )}
+                    {!isDiscount && !isPenalty && (
+                      <strong className="text-[#6e5641] font-bold whitespace-nowrap">
+                        $0
+                      </strong>
+                    )}
+                  </div>
 
-                    <td className="py-2.5 px-2 text-right font-mono-fiscal font-extrabold text-[#1c1613] align-top whitespace-nowrap">
+                  <div className="border-l border-[#1c1613]/15 pl-2">
+                    <span className="block text-[9px] uppercase font-bold text-[#6e5641]">
+                      Cuota Justa
+                    </span>
+                    <strong className="text-[#1c1613] font-extrabold whitespace-nowrap">
                       {formatArgentinePesos(row.fairAdjustedShare)}
-                    </td>
+                    </strong>
+                  </div>
+                </div>
 
-                    <td className="py-2.5 px-2.5 text-right font-mono-fiscal font-extrabold align-top whitespace-nowrap space-y-1">
-                      {row.statusBadge === 'creditor' && (
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-[#15803d] text-white text-xs shadow-2xs">
-                          COBRA {formatArgentinePesos(row.netBalance)}
-                        </span>
-                      )}
-                      {row.statusBadge === 'debtor' && (
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="inline-block px-2 py-0.5 rounded-md bg-[#a81c24] text-white text-xs shadow-2xs">
-                            PAGA {formatArgentinePesos(Math.abs(row.netBalance))}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDebtorEscrache(row)}
-                            className="inline-flex items-center gap-1 text-[10px] font-sans font-bold px-2 py-0.5 rounded bg-[#eab308]/30 hover:bg-[#eab308]/60 text-[#1c1613] border border-[#1c1613]/40 cursor-pointer transition-colors no-print"
-                          >
-                            <Megaphone className="w-3 h-3 text-[#a81c24]" />
-                            Emitir Cédula
-                          </button>
-                        </div>
-                      )}
-                      {row.statusBadge === 'settled' && (
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-[#1c1613]/15 text-[#1c1613] text-xs">
-                          AL DÍA
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                {/* Bottom Row: Concise Fiscal Justification */}
+                <div className="mt-1.5 text-[11px] text-[#5c4938] leading-snug">
+                  <span className="font-bold text-[#4a3a2c]">Concepto: </span>
+                  {row.appliedConcepts.join(' · ')}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -393,14 +439,14 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
               {report.transfers.map((tr, idx) => (
                 <li
                   key={`${tr.fromName}-${tr.toName}-${idx}`}
-                  className="flex items-center justify-between bg-[#fcf7eb] border border-[#1c1613]/30 rounded-lg px-3 py-1.5 text-xs font-mono-fiscal"
+                  className="flex items-center justify-between gap-2 bg-[#fcf7eb] border border-[#1c1613]/30 rounded-lg px-3 py-2 text-xs font-mono-fiscal"
                 >
-                  <span>
+                  <span className="min-w-0 flex-1 leading-snug">
                     <strong className="text-[#a81c24]">{tr.fromName}</strong>
-                    {' → '}
+                    <span className="text-[#6e5641] mx-1">→</span>
                     <strong className="text-[#15803d]">{tr.toName}</strong>
                   </span>
-                  <span className="font-extrabold text-sm text-[#1c1613]">
+                  <span className="font-extrabold text-sm text-[#1c1613] bg-[#f2e4c6] border border-[#1c1613]/25 px-2 py-0.5 rounded whitespace-nowrap shrink-0">
                     {formatArgentinePesos(tr.amount)}
                   </span>
                 </li>
@@ -428,16 +474,26 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
             type="button"
             onClick={handleTriggerStamp}
             title="Hacé clic para sellar el acta con sonido de oficina pública y aplauso"
-            className="official-rubber-stamp px-3 py-2 rounded-md text-center cursor-pointer hover:scale-105 transition-transform mb-2.5 bg-[#fcf7eb]/90"
+            className={`official-rubber-stamp px-3 py-2 rounded-md text-center cursor-pointer hover:scale-105 transition-transform mb-2.5 ${
+              sealStatus === 'sealed'
+                ? 'bg-[#fcf7eb]/90 opacity-100'
+                : 'bg-[#fff5f5]/90 opacity-75 border-dashed'
+            }`}
           >
             <div className="text-[9px] font-mono-fiscal font-extrabold">
               REPÚBLICA DEL ASADO · LEY 27.931
             </div>
             <div className="text-sm font-extrabold tracking-widest">
-              AUDITADO POR EL ASADOR
+              {sealStatus === 'sealed'
+                ? 'AUDITADO POR EL ASADOR'
+                : sealStatus === 'stale'
+                  ? 'RECTIFICATIVA · VOLVER A SELLAR'
+                  : 'PENDIENTE DE SELLO OFICIAL'}
             </div>
             <div className="text-[9px] font-mono-fiscal font-bold">
-              PROHIBIDO LLORAR EN EL GRUPO
+              {sealStatus === 'sealed'
+                ? 'PROHIBIDO LLORAR EN EL GRUPO'
+                : 'CLIC AQUÍ PARA ESTAMPAR EL SELLO'}
             </div>
           </button>
 
@@ -457,19 +513,30 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
 
       {/* Action Bar on the Comprobante Oficial */}
       <div className="mt-5 pt-4 border-t-2 border-[#1c1613]/20 flex flex-wrap items-center justify-between gap-3 no-print">
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#5c4938]">
-          <FileCheck2 className="w-4 h-4 text-[#15803d]" />
-          <span>Documento público con validez moral en todo grupo de WhatsApp argentino</span>
+        <div className="flex flex-col gap-0.5 text-xs font-semibold text-[#5c4938]">
+          <div className="flex items-center gap-2">
+            <FileCheck2 className="w-4 h-4 text-[#15803d]" />
+            <span>Documento público con validez moral en todo grupo de WhatsApp argentino</span>
+          </div>
+          <span className="text-[10px] font-mono-fiscal text-[#7c5836]">
+            Documento humorístico · Simulación parrillera sin validez fiscal real
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <button
             type="button"
             onClick={handleTriggerStamp}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border-2 border-[#1c1613] bg-[#f2e4c6] hover:bg-[#e8d5ae] text-[#1c1613] font-extrabold text-xs cursor-pointer transition-colors"
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border-2 font-extrabold text-xs cursor-pointer transition-colors ${
+              sealStatus === 'sealed'
+                ? 'border-[#1c1613] bg-[#f2e4c6] hover:bg-[#e8d5ae] text-[#1c1613]'
+                : 'border-[#a81c24] bg-[#a81c24] hover:bg-[#8b161d] text-white shadow-md'
+            }`}
           >
-            <Stamp className="w-4 h-4 text-[#a81c24]" />
-            ¡Sellar Acta! (Con Sonido)
+            <Stamp className="w-4 h-4" />
+            {sealStatus === 'sealed'
+              ? 'Re-estampar Sello'
+              : '¡Sellar Acta 931-B!'}
           </button>
 
           <button

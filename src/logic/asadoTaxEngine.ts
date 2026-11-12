@@ -12,6 +12,7 @@ export type AsadoRoleId =
   | 'house_host'
   | 'butcher_buyer'
   | 'fernet_sommelier'
+  | 'regular_guest'
   | 'ice_bringer'
   | 'pure_parasite';
 
@@ -145,11 +146,19 @@ export const ASADO_ROLES: Record<AsadoRoleId, RoleDefinition> = {
   },
   fernet_sommelier: {
     id: 'fernet_sommelier',
-    label: 'Sommelier de Fernet / Picada',
+    label: 'Armó los Fernet / Picada (-5%)',
     shortTag: 'Barra & Fernet',
-    taxCode: 'REG-GENERAL-04',
+    taxCode: 'BON-FERNET-04',
+    weightDelta: -0.05,
+    fiscalReason: 'Bonificación leve por mantener hidratada a la mesa (-5%)',
+  },
+  regular_guest: {
+    id: 'regular_guest',
+    label: 'Invitado Cumplidor / Comensal Normal',
+    shortTag: 'Invitado Normal',
+    taxCode: 'REG-INVITADO-05',
     weightDelta: 0.0,
-    fiscalReason: 'Alícuota estándar equilibrada (hidratación espiritual del grupo)',
+    fiscalReason: 'Alícuota estándar sin recargo ni descuento (vino a comer y paga su parte justa)',
   },
   ice_bringer: {
     id: 'ice_bringer',
@@ -252,7 +261,12 @@ export function calculateAsadoSettlement(
   rigorMode: FiscalRigorMode = 'standard'
 ): AsadoSettlementReport {
   try {
-    const safeParticipants = participants.filter((p) => p && p.name.trim().length > 0);
+    const safeParticipants = participants
+      .filter((p) => Boolean(p))
+      .map((p, idx) => ({
+        ...p,
+        name: p.name.trim() || `Comensal #${idx + 1}`,
+      }));
     const rigorMultiplier = FISCAL_RIGOR_MODES[rigorMode]?.multiplier ?? 1.0;
 
     if (safeParticipants.length === 0) {
@@ -439,7 +453,7 @@ export function formatArgentinePesos(amount: number): string {
   const rounded = Math.round(Number(amount) || 0);
   const sign = rounded < 0 ? '-' : '';
   const absFormatted = Math.abs(rounded).toLocaleString('es-AR');
-  return `${sign}$ ${absFormatted}`;
+  return `${sign}$${absFormatted}`;
 }
 
 /**

@@ -144,6 +144,32 @@ body {
   animation: slowSpinSun 28s linear infinite;
 }
 
+@keyframes receiptRowFlash {
+  0% {
+    background-color: #fde047;
+  }
+  100% {
+    background-color: #f8e7b5;
+  }
+}
+
+.animate-receipt-row-flash {
+  animation: receiptRowFlash 0.65s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ember-1,
+  .animate-ember-2,
+  .animate-ember-3,
+  .animate-brasa-glow,
+  .animate-sol-mayo,
+  .official-rubber-stamp,
+  .animate-receipt-row-flash {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 @media print {
   body {
     background: #ffffff !important;
