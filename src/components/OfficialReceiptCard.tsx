@@ -58,6 +58,14 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
   const [selectedDebtorEscrache, setSelectedDebtorEscrache] =
     useState<ParticipantAuditRow | null>(null);
   const [copiedEscrache, setCopiedEscrache] = useState(false);
+  const [copiedTransferIdx, setCopiedTransferIdx] = useState<number | null>(null);
+  const [sealedAtTime, setSealedAtTime] = useState<string>(() =>
+    new Date().toLocaleTimeString('es-AR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  );
+  const [showQrCertificate, setShowQrCertificate] = useState(false);
 
   const rigorInfo = FISCAL_RIGOR_MODES[report.rigorMode];
 
@@ -103,6 +111,12 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
   const handleTriggerStamp = () => {
     playRubberStampSound();
     setStampAnimationKey((prev) => prev + 1);
+    setSealedAtTime(
+      new Date().toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    );
     onSealReceipt?.();
     try {
       confetti({
@@ -114,6 +128,23 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
     } catch {
       // Ignore confetti errors in headless environments
     }
+  };
+
+  const handleCopySingleTransfer = async (
+    fromName: string,
+    toName: string,
+    amount: number,
+    idx: number
+  ) => {
+    const alias = paymentAlias || 'tucu.asador.mp';
+    const text = `🥩 *INTIMACIÓN DE PAGO ARCA-SADO (${report.expedientNumber})*: Che *${fromName}*, según el Formulario Oficial 931-B te toca transferirle *${formatArgentinePesos(amount)}* a *${toName}*. Alias CBU: \`${alias}\` ¡Transferí antes de las 23:59 hs!`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // ignore fallback
+    }
+    setCopiedTransferIdx(idx);
+    setTimeout(() => setCopiedTransferIdx(null), 2200);
   };
 
   const handlePrintReceipt = () => {
@@ -446,9 +477,36 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
                     <span className="text-[#6e5641] mx-1">→</span>
                     <strong className="text-[#15803d]">{tr.toName}</strong>
                   </span>
-                  <span className="font-extrabold text-sm text-[#1c1613] bg-[#f2e4c6] border border-[#1c1613]/25 px-2 py-0.5 rounded whitespace-nowrap shrink-0">
-                    {formatArgentinePesos(tr.amount)}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="font-extrabold text-sm text-[#1c1613] bg-[#f2e4c6] border border-[#1c1613]/25 px-2 py-0.5 rounded whitespace-nowrap">
+                      {formatArgentinePesos(tr.amount)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCopySingleTransfer(
+                          tr.fromName,
+                          tr.toName,
+                          tr.amount,
+                          idx
+                        )
+                      }
+                      title={`Copiar cobro para ${tr.fromName}`}
+                      className="px-2 py-1 rounded bg-[#1c1613] hover:bg-[#38261e] text-[#fcf7eb] text-[10px] font-sans font-bold cursor-pointer transition-colors inline-flex items-center gap-1 no-print whitespace-nowrap"
+                    >
+                      {copiedTransferIdx === idx ? (
+                        <>
+                          <Check className="w-3 h-3 text-[#4ade80]" />
+                          Copiado
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-[#eab308]" />
+                          Cobrar
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -492,22 +550,49 @@ export const OfficialReceiptCard: React.FC<OfficialReceiptCardProps> = ({
             </div>
             <div className="text-[9px] font-mono-fiscal font-bold">
               {sealStatus === 'sealed'
-                ? 'PROHIBIDO LLORAR EN EL GRUPO'
+                ? `SELLADO HOY ${sealedAtTime} HS · PROHIBIDO LLORAR`
                 : 'CLIC AQUÍ PARA ESTAMPAR EL SELLO'}
             </div>
           </button>
 
-          <div className="flex items-center gap-2.5 text-[10px] font-mono-fiscal text-[#4a3a2c]">
+          <button
+            type="button"
+            onClick={() => setShowQrCertificate((prev) => !prev)}
+            title="Ver Certificado Digital de Autenticidad del QR"
+            className="flex items-center gap-2.5 text-left text-[10px] font-mono-fiscal text-[#4a3a2c] hover:bg-[#fcf7eb]/80 p-1.5 rounded-lg border border-transparent hover:border-[#1c1613]/25 cursor-pointer transition-all"
+          >
             <FiscalMatrixQrSvg
               seedText={`${report.expedientNumber}-${paymentAlias}-${report.totalPoolPesos}`}
               size={60}
             />
             <div className="leading-tight space-y-0.5">
-              <div className="font-bold text-[#1c1613]">QR FISCAL VERIFICADO</div>
+              <div className="font-bold text-[#1c1613] underline decoration-dotted">
+                QR FISCAL VERIFICADO (Ver)
+              </div>
               <div>CAE: 760931482019</div>
               <div className="text-[#a81c24] font-bold">Vto: HOY 23:59 HS</div>
             </div>
-          </div>
+          </button>
+
+          {showQrCertificate && (
+            <div className="mt-2 w-full rounded-lg bg-[#1c1613] text-[#fcf7eb] p-2.5 text-[10px] font-mono-fiscal space-y-1 no-print">
+              <div className="flex items-center justify-between text-[#eab308] font-bold">
+                <span>✓ FIRMA DIGITAL AFIP-ASADO</span>
+                <button
+                  type="button"
+                  onClick={() => setShowQrCertificate(false)}
+                  className="text-[#fcf7eb]/70 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+              <div>Hash Mesa: {report.expedientNumber}</div>
+              <div>Pozo Verificado: {formatArgentinePesos(report.totalPoolPesos)}</div>
+              <div className="text-[#4ade80]">
+                Balance cuadrado al 100% sin desvíos
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
